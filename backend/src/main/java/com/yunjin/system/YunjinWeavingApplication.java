@@ -1,11 +1,15 @@
 package com.yunjin.system;
 
+import com.yunjin.system.config.ImageProcessingProperties;
+import com.yunjin.system.config.WeavingProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
+@EnableConfigurationProperties({WeavingProperties.class, ImageProcessingProperties.class})
 public class YunjinWeavingApplication {
     public static void main(String[] args) {
         SpringApplication.run(YunjinWeavingApplication.class, args);
