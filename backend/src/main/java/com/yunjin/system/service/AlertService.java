@@ -1,5 +1,6 @@
 package com.yunjin.system.service;
 
+import com.yunjin.system.config.WeavingProperties;
 import com.yunjin.system.dto.AlertDTO;
 import com.yunjin.system.dto.SensorDataDTO;
 import com.yunjin.system.entity.Alert;
@@ -9,7 +10,6 @@ import com.yunjin.system.repository.AlertRepository;
 import com.yunjin.system.repository.LoomRepository;
 import com.yunjin.system.repository.SensorDataRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -22,29 +22,19 @@ public class AlertService {
     private final AlertRepository alertRepository;
     private final SensorDataRepository sensorDataRepository;
     private final LoomRepository loomRepository;
-
-    @Value("${weaving.alert.warp-tension-min:0.5}")
-    private double warpTensionMin;
-
-    @Value("${weaving.alert.warp-tension-max:5.0}")
-    private double warpTensionMax;
-
-    @Value("${weaving.alert.pattern-misalignment-threshold:3}")
-    private int patternMisalignmentThreshold;
-
-    private static final double WARP_BREAK_EPSILON = 0.05;
-    private static final double WEFT_DENSITY_TOLERANCE = 0.15;
-    private static final int PATTERN_JUMP_WINDOW = 5;
+    private final WeavingProperties weavingProperties;
 
     private final Map<Long, List<Integer>> loomPatternHistory = new ConcurrentHashMap<>();
 
     @Autowired
     public AlertService(AlertRepository alertRepository,
                         SensorDataRepository sensorDataRepository,
-                        LoomRepository loomRepository) {
+                        LoomRepository loomRepository,
+                        WeavingProperties weavingProperties) {
         this.alertRepository = alertRepository;
         this.sensorDataRepository = sensorDataRepository;
         this.loomRepository = loomRepository;
+        this.weavingProperties = weavingProperties;
     }
 
     public List<Alert> checkAndGenerateAlerts(SensorDataDTO dto) {
@@ -111,7 +101,7 @@ public class AlertService {
 
         List<Integer> brokenWarpIndices = new ArrayList<>();
         for (int i = 0; i < tensionArray.length; i++) {
-            if (tensionArray[i] < WARP_BREAK_EPSILON) {
+            if (tensionArray[i] < weavingProperties.getAlert().getWarpBreakEpsilon()) {
                 brokenWarpIndices.add(i);
             }
         }
@@ -146,7 +136,7 @@ public class AlertService {
             double sum = 0.0;
             int count = 0;
             for (double t : tensionArray) {
-                if (t > WARP_BREAK_EPSILON) {
+                if (t > weavingProperties.getAlert().getWarpBreakEpsilon()) {
                     sum += t;
                     count++;
                 }
@@ -160,12 +150,12 @@ public class AlertService {
 
         boolean anomaly = false;
         String reason = "";
-        if (avgTension < warpTensionMin && avgTension > WARP_BREAK_EPSILON) {
+        if (avgTension < weavingProperties.getAlert().getWarpTensionMin() && avgTension > weavingProperties.getAlert().getWarpBreakEpsilon()) {
             anomaly = true;
-            reason = String.format("整体张力 %.3f 低于最小值 %.3f", avgTension, warpTensionMin);
-        } else if (avgTension > warpTensionMax) {
+            reason = String.format("整体张力 %.3f 低于最小值 %.3f", avgTension, weavingProperties.getAlert().getWarpTensionMin());
+        } else if (avgTension > weavingProperties.getAlert().getWarpTensionMax()) {
             anomaly = true;
-            reason = String.format("整体张力 %.3f 超过最大值 %.3f", avgTension, warpTensionMax);
+            reason = String.format("整体张力 %.3f 超过最大值 %.3f", avgTension, weavingProperties.getAlert().getWarpTensionMax());
         }
 
         if (!anomaly) {
@@ -194,11 +184,11 @@ public class AlertService {
         if (!history.isEmpty()) {
             int lastPos = history.get(history.size() - 1);
             int diff = Math.abs(patternPos - lastPos);
-            if (diff > patternMisalignmentThreshold && diff < 1000) {
+            if (diff > weavingProperties.getAlert().getPatternMisalignmentThreshold() && diff < 1000) {
                 if (checkConsecutiveJumps(history, patternPos)) {
                     String message = String.format(
                             "花本错位检测：最近 %d 次 patternPosition 跳跃差均超过阈值 %d，当前位置: %d",
-                            PATTERN_JUMP_WINDOW, patternMisalignmentThreshold, patternPos
+                            weavingProperties.getAlert().getPatternJumpWindow(), weavingProperties.getAlert().getPatternMisalignmentThreshold(), patternPos
                     );
 
                     Alert alert = new Alert();
@@ -217,24 +207,24 @@ public class AlertService {
         }
 
         history.add(patternPos);
-        if (history.size() > PATTERN_JUMP_WINDOW * 2) {
-            history.subList(0, history.size() - PATTERN_JUMP_WINDOW * 2).clear();
+        if (history.size() > weavingProperties.getAlert().getPatternJumpWindow() * 2) {
+            history.subList(0, history.size() - weavingProperties.getAlert().getPatternJumpWindow() * 2).clear();
         }
 
         return null;
     }
 
     private boolean checkConsecutiveJumps(List<Integer> history, int currentPos) {
-        if (history.size() < PATTERN_JUMP_WINDOW - 1) {
+        if (history.size() < weavingProperties.getAlert().getPatternJumpWindow() - 1) {
             return false;
         }
 
         int consecutiveCount = 0;
         int lastPos = currentPos;
 
-        for (int i = history.size() - 1; i >= 0 && consecutiveCount < PATTERN_JUMP_WINDOW - 1; i--) {
+        for (int i = history.size() - 1; i >= 0 && consecutiveCount < weavingProperties.getAlert().getPatternJumpWindow() - 1; i--) {
             int diff = Math.abs(lastPos - history.get(i));
-            if (diff > patternMisalignmentThreshold && diff < 1000) {
+            if (diff > weavingProperties.getAlert().getPatternMisalignmentThreshold() && diff < 1000) {
                 consecutiveCount++;
                 lastPos = history.get(i);
             } else {
@@ -242,7 +232,7 @@ public class AlertService {
             }
         }
 
-        return consecutiveCount >= PATTERN_JUMP_WINDOW - 1;
+        return consecutiveCount >= weavingProperties.getAlert().getPatternJumpWindow() - 1;
     }
 
     private Alert checkWeftDensityError(Long loomId, SensorDataDTO dto, Loom loom) {
@@ -260,13 +250,13 @@ public class AlertService {
 
         double deviation = Math.abs(weftDensity - targetDensity) / targetDensity;
 
-        if (deviation <= WEFT_DENSITY_TOLERANCE) {
+        if (deviation <= weavingProperties.getAlert().getWeftDensityTolerance()) {
             return null;
         }
 
         String message = String.format(
                 "纬密偏差：当前纬密 %.2f，目标纬密 %.2f，偏差 %.1f%% 超过容许 %.0f%%",
-                weftDensity, targetDensity, deviation * 100, WEFT_DENSITY_TOLERANCE * 100
+                weftDensity, targetDensity, deviation * 100, weavingProperties.getAlert().getWeftDensityTolerance() * 100
         );
 
         Alert alert = new Alert();
