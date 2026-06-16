@@ -67,3 +67,26 @@ image-processing:
     warp-color: 15196840
     weft-color: 9130195
     light-angle: 45.0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics,env,beans
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: yunjin-weaving-system
+    export:
+      prometheus:
+        enabled: true
+  health:
+    defaults:
+      enabled: true
+    db:
+      enabled: true

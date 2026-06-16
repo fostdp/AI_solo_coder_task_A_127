@@ -76,6 +76,21 @@ CREATE TABLE IF NOT EXISTS weaving_simulation (
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 复合索引：传感器数据按织机+时间范围查询
+CREATE INDEX IF NOT EXISTS idx_sensor_data_loom_time ON sensor_data(loom_id, timestamp DESC);
+
+-- 覆盖索引：活跃告警快速查询
+CREATE INDEX IF NOT EXISTS idx_alert_active ON alert(resolved, created_at DESC) WHERE resolved = FALSE;
+
+-- 织机状态查询索引
+CREATE INDEX IF NOT EXISTS idx_alert_type_level ON alert(alert_type, alert_level);
+
+-- 仿真状态查询
+CREATE INDEX IF NOT EXISTS idx_weaving_simulation_loom ON weaving_simulation(loom_id);
+
+-- 织物分析按时间倒序
+CREATE INDEX IF NOT EXISTS idx_fabric_analysis_loom_time ON fabric_analysis(loom_id, created_at DESC);
+
 -- 初始数据
 INSERT INTO loom (loom_code, loom_name, location, status, total_warp_count, weft_density_target)
 VALUES 

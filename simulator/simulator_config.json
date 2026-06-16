@@ -1,0 +1,70 @@
+{
+  "patterns": {
+    "dragon_cloud": {
+      "name": "云龙纹大花",
+      "cycle_length": 240,
+      "motif_positions": [2, 5, 10, 13],
+      "harness_count": 4,
+      "border_width_ratio": 12,
+      "description": "经典云锦云龙纹，4综24通丝花本"
+    },
+    "peony_brocade": {
+      "name": "牡丹锦缎",
+      "cycle_length": 180,
+      "motif_positions": [1, 4, 7, 11, 14],
+      "harness_count": 8,
+      "border_width_ratio": 10,
+      "description": "牡丹花缎纹，8综花本"
+    },
+    "plain_silk": {
+      "name": "素缎平纹",
+      "cycle_length": 2,
+      "motif_positions": [],
+      "harness_count": 2,
+      "border_width_ratio": 15,
+      "description": "最基础的1/1平纹素织物"
+    },
+    "satin_8": {
+      "name": "八枚缎纹",
+      "cycle_length": 8,
+      "motif_positions": [0, 3, 5, 7],
+      "harness_count": 8,
+      "border_width_ratio": 10,
+      "description": "八枚三飞缎纹组织"
+    }
+  },
+  "tension_profiles": {
+    "normal": {
+      "name": "正常织造",
+      "base_tension": 2.2,
+      "tension_noise": 0.15,
+      "friction_mu": 0.28,
+      "break_probability": 0.005,
+      "description": "标准织造张力参数"
+    },
+    "high_tension": {
+      "name": "高张力织造",
+      "base_tension": 3.8,
+      "tension_noise": 0.25,
+      "friction_mu": 0.35,
+      "break_probability": 0.02,
+      "description": "紧经高张力，断纱概率增大"
+    },
+    "loose_warp": {
+      "name": "松经织造",
+      "base_tension": 1.2,
+      "tension_noise": 0.35,
+      "friction_mu": 0.18,
+      "break_probability": 0.001,
+      "description": "松经低张力，张力波动大"
+    },
+    "worn_loom": {
+      "name": "老旧织机",
+      "base_tension": 2.2,
+      "tension_noise": 0.40,
+      "friction_mu": 0.45,
+      "break_probability": 0.015,
+      "description": "摩擦系数高、断纱频繁"
+    }
+  }
+}
