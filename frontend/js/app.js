@@ -136,7 +136,7 @@
         $('bar-progress').style.width = (prog * 100) + '%';
 
         if (d.warpTensionArray && Array.isArray(d.warpTensionArray)) {
-            window.FabricAnalysis.drawTensionDistribution('tension-canvas', d.warpTensionArray.slice(0, 100));
+            FabricPanel.WeaveView.drawTensionDistribution('tension-canvas', d.warpTensionArray.slice(0, 100));
         }
 
         lastPatternPositions.push(pp);
@@ -155,12 +155,12 @@
         }
         if (state.interlacementMatrix && Array.isArray(state.interlacementMatrix)) {
             interlaceMatrix = state.interlacementMatrix;
-            window.FabricAnalysis.drawInterlacementMatrix('interlace-canvas', interlaceMatrix, 180);
-            window.FabricAnalysis.drawTextureImage('texture-canvas', interlaceMatrix, 3);
+            FabricPanel.WeaveView.drawInterlacementMatrix('interlace-canvas', interlaceMatrix, 180);
+            FabricPanel.Analysis.drawTextureImage('texture-canvas', interlaceMatrix, 3);
         }
         if (state.shedState && Array.isArray(state.shedState)) {
             currentShed = state.shedState;
-            window.FabricAnalysis.drawShedOpening('shed-canvas', currentShed);
+            FabricPanel.WeaveView.drawShedOpening('shed-canvas', currentShed);
             if (window.Loom3DViewer) window.Loom3DViewer.updateShedOpening(currentShed);
         }
     }
@@ -230,7 +230,7 @@
                     warpFreq: fft.warpFreq || [2, 4],
                     weftFreq: fft.weftFreq || [1, 3]
                 };
-                window.FabricAnalysis.drawFFTSpectrum('fft-canvas', fakeFft);
+                FabricPanel.Analysis.drawFFTSpectrum('fft-canvas', fakeFft);
 
                 $('fft-info').innerHTML =
                     `经向主频: ${(fft.warpFreq || [1,2]).join(', ')}\n纬向主频: ${(fft.weftFreq || [1,3]).join(', ')}`;
@@ -243,7 +243,7 @@
                 if (r.warpCoverage) $('res-warp-coverage').textContent = (r.warpCoverage * 100).toFixed(1) + '%';
             }
 
-            const result = window.FabricAnalysis.analyzePattern(interlaceMatrix.length > 0 ? interlaceMatrix : generateTestMatrix());
+            const result = FabricPanel.Analysis.analyzePattern(interlaceMatrix.length > 0 ? interlaceMatrix : generateTestMatrix());
             if (result) {
                 $('res-pattern').textContent = $('res-pattern').textContent === '--' ? result.patternName : $('res-pattern').textContent;
                 if ($('res-warp-cycle').textContent === '--') $('res-warp-cycle').textContent = result.warpCycle + ' 根';
