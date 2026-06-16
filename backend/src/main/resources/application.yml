@@ -1,0 +1,40 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: yunjin-weaving-system
+  datasource:
+    url: jdbc:postgresql://localhost:5432/yunjin_weaving
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+
+logging:
+  level:
+    com.yunjin.system: DEBUG
+    org.springframework.web.socket: DEBUG
+
+weaving:
+  alert:
+    warp-tension-min: 0.5
+    warp-tension-max: 5.0
+    pattern-misalignment-threshold: 3
+  simulation:
+    default-warp-count: 1200
+    default-weft-density: 60.0
+    tension-base: 2.2
+    friction-coefficient: 0.28
