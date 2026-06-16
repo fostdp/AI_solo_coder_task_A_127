@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>古代云锦织机提花工艺仿真与织物结构分析系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/TransformControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@7.0.0/dist/stomp.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <h1>🧵 古代云锦织机提花工艺仿真系统</h1>
+            <span class="subtitle">南京云锦大花楼织机 · 纺织史复原研究平台</span>
+        </div>
+        <div class="header-right">
+            <select id="loom-select" class="loom-select">
+                <option value="">选择织机...</option>
+            </select>
+            <div id="connection-status" class="status disconnected">● 未连接</div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <aside class="sidebar">
+            <div class="panel">
+                <h3>📊 实时传感器数据</h3>
+                <div class="metric-grid">
+                    <div class="metric-card">
+                        <label>经纱张力 (N)</label>
+                        <div id="metric-tension" class="metric-value">--</div>
+                        <div class="metric-bar"><div id="bar-tension" class="bar-fill normal"></div></div>
+                    </div>
+                    <div class="metric-card">
+                        <label>纬纱密度 (根/cm)</label>
+                        <div id="metric-density" class="metric-value">--</div>
+                        <div class="metric-bar"><div id="bar-density" class="bar-fill normal"></div></div>
+                    </div>
+                    <div class="metric-card">
+                        <label>花本位置</label>
+                        <div id="metric-pattern" class="metric-value">--</div>
+                        <div class="metric-bar"><div id="bar-pattern" class="bar-fill info"></div></div>
+                    </div>
+                    <div class="metric-card">
+                        <label>织物进度</label>
+                        <div id="metric-progress" class="metric-value">--</div>
+                        <div class="metric-bar"><div id="bar-progress" class="bar-fill success"></div></div>
+                    </div>
+                </div>
+                <div id="tension-array-panel" class="tension-array-panel">
+                    <label>经纱张力分布 (前100根)</label>
+                    <canvas id="tension-canvas" width="360" height="80"></canvas>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>⚙️ 仿真控制</h3>
+                <div class="control-group">
+                    <button id="btn-init" class="btn btn-primary">初始化仿真</button>
+                    <button id="btn-step" class="btn btn-success">单步织造</button>
+                    <button id="btn-auto" class="btn btn-warning">▶ 自动织造</button>
+                    <button id="btn-stop" class="btn btn-danger">■ 停止</button>
+                </div>
+                <div class="control-group">
+                    <label>织造速度: <span id="speed-val">500</span>ms/纬</label>
+                    <input type="range" id="speed-range" min="100" max="2000" step="100" value="500">
+                </div>
+                <div class="control-group">
+                    <label>当前纬纱行: <span id="weft-row" class="highlight">0</span></label>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>🚨 实时告警</h3>
+                <div id="alert-badge" class="alert-badge hidden">
+                    <span id="alert-count">0</span> 条未处理
+                </div>
+                <div id="alert-list" class="alert-list">
+                    <div class="empty-hint">暂无告警</div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="view-tabs">
+                <button class="tab-btn active" data-tab="3d">🎯 织机3D视图</button>
+                <button class="tab-btn" data-tab="weave">🧶 织造仿真</button>
+                <button class="tab-btn" data-tab="analysis">🔬 织物结构分析</button>
+            </div>
+
+            <div id="tab-3d" class="tab-content active">
+                <div class="viewer-container">
+                    <div id="loom-3d-container" class="canvas-container"></div>
+                    <div class="viewer-legend">
+                        <h4>图例说明</h4>
+                        <div class="legend-item"><span class="legend-warp"></span>经纱（上层/下层开口）</div>
+                        <div class="legend-item"><span class="legend-weft"></span>纬纱</div>
+                        <div class="legend-item"><span class="legend-pattern"></span>花本/通丝装置</div>
+                        <div class="legend-item"><span class="legend-fabric"></span>已织织物</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-weave" class="tab-content">
+                <div class="weave-container">
+                    <div class="weave-view">
+                        <h4>开口运动示意 (梭口形成 - 经纱上下分层)</h4>
+                        <canvas id="shed-canvas" width="900" height="200"></canvas>
+                    </div>
+                    <div class="weave-view">
+                        <h4>交织矩阵视图 (经浮点/纬浮点)</h4>
+                        <canvas id="interlace-canvas" width="900" height="500"></canvas>
+                        <div class="weave-legend">
+                            <span class="dot warp-dot"></span> 经浮点(经在上)
+                            <span class="dot weft-dot"></span> 纬浮点(纬在上)
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-analysis" class="tab-content">
+                <div class="analysis-container">
+                    <div class="analysis-row">
+                        <div class="analysis-card">
+                            <h4>织物纹理模拟图像</h4>
+                            <canvas id="texture-canvas" width="512" height="512"></canvas>
+                            <button id="btn-analyze" class="btn btn-primary btn-block">执行结构分析</button>
+                        </div>
+                        <div class="analysis-card">
+                            <h4>FFT频谱分析</h4>
+                            <canvas id="fft-canvas" width="512" height="512"></canvas>
+                            <div id="fft-info" class="info-panel">等待分析...</div>
+                        </div>
+                    </div>
+                    <div class="analysis-result">
+                        <h4>📋 分析结果</h4>
+                        <div id="analysis-result-panel" class="result-grid">
+                            <div class="result-item">
+                                <label>组织类型</label>
+                                <span id="res-pattern" class="result-val">--</span>
+                            </div>
+                            <div class="result-item">
+                                <label>经纱循环</label>
+                                <span id="res-warp-cycle" class="result-val">--</span>
+                            </div>
+                            <div class="result-item">
+                                <label>纬纱循环</label>
+                                <span id="res-weft-cycle" class="result-val">--</span>
+                            </div>
+                            <div class="result-item">
+                                <label>经浮点覆盖率</label>
+                                <span id="res-warp-coverage" class="result-val">--</span>
+                            </div>
+                            <div class="result-item">
+                                <label>主频率 (经向)</label>
+                                <span id="res-freq-warp" class="result-val">--</span>
+                            </div>
+                            <div class="result-item">
+                                <label>主频率 (纬向)</label>
+                                <span id="res-freq-weft" class="result-val">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/loom-3d.js"></script>
+    <script src="js/fabric-analysis.js"></script>
+    <script src="js/alert-panel.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
