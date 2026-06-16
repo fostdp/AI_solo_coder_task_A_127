@@ -2,6 +2,7 @@ package com.yunjin.system.weaving_simulator;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yunjin.system.config.WeavingProperties;
 import com.yunjin.system.dto.SensorDataDTO;
 import com.yunjin.system.entity.SensorData;
 import com.yunjin.system.event.SensorDataReceivedEvent;
@@ -9,7 +10,6 @@ import com.yunjin.system.event.SimulationStepEvent;
 import com.yunjin.system.repository.SensorDataRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -25,18 +25,18 @@ public class WeavingSimulatorListener {
     private final SensorDataRepository sensorDataRepository;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
-
-    @Value("${weaving.simulation.auto-advance:false}")
-    private boolean autoAdvance;
+    private final WeavingProperties weavingProperties;
 
     public WeavingSimulatorListener(WeavingSimulatorService weavingSimulatorService,
                                     SensorDataRepository sensorDataRepository,
                                     ObjectMapper objectMapper,
-                                    ApplicationEventPublisher eventPublisher) {
+                                    ApplicationEventPublisher eventPublisher,
+                                    WeavingProperties weavingProperties) {
         this.weavingSimulatorService = weavingSimulatorService;
         this.sensorDataRepository = sensorDataRepository;
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
+        this.weavingProperties = weavingProperties;
     }
 
     @EventListener
@@ -44,7 +44,9 @@ public class WeavingSimulatorListener {
         SensorDataDTO dto = event.getSensorData();
 
         if (dto.getShedOpeningArray() != null && dto.getShedOpeningArray().length > 0) {
-            double baseTension = dto.getWarpTension() != null ? dto.getWarpTension() : 2.2;
+            double baseTension = dto.getWarpTension() != null
+                    ? dto.getWarpTension()
+                    : weavingProperties.getSimulation().getTensionBase();
             double[] frictionTensions = weavingSimulatorService.computeWarpTensionWithFriction(
                     dto.getLoomId(), baseTension, dto.getShedOpeningArray());
 
@@ -60,6 +62,7 @@ public class WeavingSimulatorListener {
                 }
             }
 
+            boolean autoAdvance = weavingProperties.getSimulation().isAutoAdvance();
             if (autoAdvance && dto.getLoomId() != null) {
                 try {
                     weavingSimulatorService.processWeftInsertion(dto.getLoomId(), dto.getShedOpeningArray());
