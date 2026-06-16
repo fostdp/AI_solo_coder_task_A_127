@@ -29,12 +29,41 @@ logging:
     org.springframework.web.socket: DEBUG
 
 weaving:
-  alert:
-    warp-tension-min: 0.5
-    warp-tension-max: 5.0
-    pattern-misalignment-threshold: 3
   simulation:
     default-warp-count: 1200
     default-weft-density: 60.0
     tension-base: 2.2
     friction-coefficient: 0.28
+    back-beam-wrap-angle: 1.57
+    heddle-eye-friction: 0.15
+    reed-dent-friction: 0.12
+    border-enhancement: 0.18
+    shed-upper-factor: 1.12
+    shed-lower-factor: 0.90
+    wear-coefficient: 0.06
+    tension-min: 0.01
+    tension-max: 6.5
+    initial-weft-rows: 500
+    max-weft-rows: 10000
+    auto-advance: false
+  alert:
+    warp-tension-min: 0.5
+    warp-tension-max: 5.0
+    pattern-misalignment-threshold: 3
+    warp-break-epsilon: 0.05
+    weft-density-tolerance: 0.15
+    pattern-jump-window: 5
+
+image-processing:
+  fft:
+    max-size: 512
+    normalization: STANDARD
+  wavelet:
+    type: HAAR
+    levels: 4
+    edge-threshold-sigma: 2.0
+  texture:
+    display-size: 256
+    warp-color: 15196840
+    weft-color: 9130195
+    light-angle: 45.0
