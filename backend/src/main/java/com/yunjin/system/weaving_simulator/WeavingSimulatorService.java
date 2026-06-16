@@ -2,13 +2,12 @@ package com.yunjin.system.weaving_simulator;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yunjin.system.config.WeavingProperties;
 import com.yunjin.system.entity.Loom;
 import com.yunjin.system.entity.WeavingSimulation;
 import com.yunjin.system.event.SimulationStepEvent;
 import com.yunjin.system.repository.LoomRepository;
 import com.yunjin.system.repository.WeavingSimulationRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
@@ -24,31 +23,18 @@ public class WeavingSimulatorService {
     private final LoomRepository loomRepository;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final WeavingProperties weavingProperties;
 
-    private static final int INITIAL_WEFT_ROWS = 500;
-    private static final int MAX_WEFT_ROWS = 10000;
-
-    private static final double COEFFICIENT_OF_FRICTION_MU = 0.28;
-    private static final double WARP_SPACING_MM = 0.83;
-    private static final double HEDDLE_EYE_FRICTION_MU = 0.15;
-    private static final double REED_DENT_FRICTION_MU = 0.12;
-    private static final double BACK_BEAM_WRAP_ANGLE_RAD = 1.57;
-
-    @Value("${weaving.simulation.tension-base:2.2}")
-    private double baseTensionNewtons;
-
-    @Value("${weaving.simulation.friction-coefficient:0.28}")
-    private double configuredFrictionMu;
-
-    @Autowired
     public WeavingSimulatorService(WeavingSimulationRepository weavingSimulationRepository,
                                    LoomRepository loomRepository,
                                    ObjectMapper objectMapper,
-                                   ApplicationEventPublisher eventPublisher) {
+                                   ApplicationEventPublisher eventPublisher,
+                                   WeavingProperties weavingProperties) {
         this.weavingSimulationRepository = weavingSimulationRepository;
         this.loomRepository = loomRepository;
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
+        this.weavingProperties = weavingProperties;
     }
 
     public WeavingSimulation initSimulation(Long loomId) {
@@ -58,7 +44,8 @@ public class WeavingSimulatorService {
         }
 
         Loom loom = loomOpt.get();
-        int warpCount = loom.getTotalWarpCount() != null ? loom.getTotalWarpCount() : 1200;
+        int warpCount = loom.getTotalWarpCount() != null ? loom.getTotalWarpCount()
+                : weavingProperties.getSimulation().getDefaultWarpCount();
 
         Optional<WeavingSimulation> existingOpt = weavingSimulationRepository.findByLoomId(loomId);
         WeavingSimulation simulation;
@@ -71,9 +58,10 @@ public class WeavingSimulatorService {
 
         simulation.setCurrentWeftRow(0);
 
-        int[][] interlacementMatrix = new int[warpCount][INITIAL_WEFT_ROWS];
+        int initialRows = weavingProperties.getSimulation().getInitialWeftRows();
+        int[][] interlacementMatrix = new int[warpCount][initialRows];
         for (int i = 0; i < warpCount; i++) {
-            for (int j = 0; j < INITIAL_WEFT_ROWS; j++) {
+            for (int j = 0; j < initialRows; j++) {
                 interlacementMatrix[i][j] = -1;
             }
         }
@@ -89,9 +77,7 @@ public class WeavingSimulatorService {
 
         simulation.setLastUpdated(LocalDateTime.now());
         WeavingSimulation saved = weavingSimulationRepository.save(simulation);
-
         eventPublisher.publishEvent(new SimulationStepEvent(this, loomId, 0, initialShed));
-
         return saved;
     }
 
@@ -124,11 +110,7 @@ public class WeavingSimulatorService {
         }
 
         for (int warp = 0; warp < warpCount; warp++) {
-            if (shedOpening[warp] == 1) {
-                interlacementMatrix[warp][currentRow] = 1;
-            } else {
-                interlacementMatrix[warp][currentRow] = 0;
-            }
+            interlacementMatrix[warp][currentRow] = (shedOpening[warp] == 1) ? 1 : 0;
         }
 
         currentRow++;
@@ -143,18 +125,16 @@ public class WeavingSimulatorService {
 
         simulation.setLastUpdated(LocalDateTime.now());
         WeavingSimulation saved = weavingSimulationRepository.save(simulation);
-
         eventPublisher.publishEvent(new SimulationStepEvent(this, loomId, currentRow, shedOpening));
-
         return saved;
     }
 
     public double[] computeWarpTensionWithFriction(Long loomId, double baseTension, int[] shedArray) {
-        Optional<Loom> loomOpt = loomRepository.findById(loomId);
+        WeavingProperties.Simulation sim = weavingProperties.getSimulation();
         int warpCount = shedArray.length;
         int borderCount = Math.min(100, warpCount / 12);
 
-        double mu = configuredFrictionMu > 0 ? configuredFrictionMu : COEFFICIENT_OF_FRICTION_MU;
+        double mu = sim.getFrictionCoefficient();
         double[] tensions = new double[warpCount];
 
         for (int w = 0; w < warpCount; w++) {
@@ -166,30 +146,31 @@ public class WeavingSimulatorService {
             double borderFactor = 1.0;
             if (w < borderCount) {
                 double borderRatio = (double) w / borderCount;
-                borderFactor = 1.0 + 0.18 * (1.0 - borderRatio);
+                borderFactor = 1.0 + sim.getBorderEnhancement() * (1.0 - borderRatio);
             } else if (w >= warpCount - borderCount) {
                 double borderRatio = (double) (warpCount - 1 - w) / borderCount;
-                borderFactor = 1.0 + 0.18 * (1.0 - borderRatio);
+                borderFactor = 1.0 + sim.getBorderEnhancement() * (1.0 - borderRatio);
             }
 
             double shedFactor;
-            if (shedArray != null && w < shedArray.length) {
-                shedFactor = (shedArray[w] == 1) ? 1.12 : 0.90;
+            if (w < shedArray.length) {
+                shedFactor = (shedArray[w] == 1) ? sim.getShedUpperFactor() : sim.getShedLowerFactor();
             } else {
                 shedFactor = 1.0;
             }
 
-            double cumulativeWear = 1.0 + 0.06 * Math.log1p(warpCount - w);
+            double cumulativeWear = 1.0 + sim.getWearCoefficient() * Math.log1p(warpCount - w);
 
-            double capstanFactor = Math.exp(mu * BACK_BEAM_WRAP_ANGLE_RAD * (0.8 + 0.4 * normalizedPos));
-            double heddleReedFactor = 1.0 + HEDDLE_EYE_FRICTION_MU * 0.25 + REED_DENT_FRICTION_MU * 0.15;
+            double capstanFactor = Math.exp(mu * sim.getBackBeamWrapAngle() * (0.8 + 0.4 * normalizedPos));
+            double heddleReedFactor = 1.0 + sim.getHeddleEyeFriction() * 0.25
+                    + sim.getReedDentFriction() * 0.15;
 
             double randomNoise = 1.0 + (Math.random() - 0.5) * 0.08;
 
             tensions[w] = baseTension * positionFactor * borderFactor
                     * shedFactor * cumulativeWear * capstanFactor * heddleReedFactor * randomNoise;
 
-            tensions[w] = Math.max(0.01, Math.min(6.5, tensions[w]));
+            tensions[w] = Math.max(sim.getTensionMin(), Math.min(sim.getTensionMax(), tensions[w]));
         }
 
         return tensions;
@@ -200,15 +181,18 @@ public class WeavingSimulatorService {
     }
 
     public Map<String, Object> getTensionModelParameters() {
+        WeavingProperties.Simulation sim = weavingProperties.getSimulation();
         Map<String, Object> params = new HashMap<>();
-        params.put("coefficientOfFrictionMu", configuredFrictionMu > 0 ? configuredFrictionMu : COEFFICIENT_OF_FRICTION_MU);
-        params.put("backBeamWrapAngleRad", BACK_BEAM_WRAP_ANGLE_RAD);
-        params.put("heddleEyeFrictionMu", HEDDLE_EYE_FRICTION_MU);
-        params.put("reedDentFrictionMu", REED_DENT_FRICTION_MU);
-        params.put("warpSpacingMm", WARP_SPACING_MM);
-        params.put("baseTensionNewtons", baseTensionNewtons);
-        params.put("borderEnhancement", "+18% 两侧边经");
-        params.put("shedEnhancement", "+12% 上层经纱 / -10% 下层经纱");
+        params.put("coefficientOfFrictionMu", sim.getFrictionCoefficient());
+        params.put("backBeamWrapAngleRad", sim.getBackBeamWrapAngle());
+        params.put("heddleEyeFrictionMu", sim.getHeddleEyeFriction());
+        params.put("reedDentFrictionMu", sim.getReedDentFriction());
+        params.put("baseTensionNewtons", sim.getTensionBase());
+        params.put("borderEnhancement", "+" + (int)(sim.getBorderEnhancement() * 100) + "% 两侧边经");
+        params.put("shedEnhancement", "+" + (int)((sim.getShedUpperFactor() - 1) * 100)
+                + "% 上层 / " + (int)((1 - sim.getShedLowerFactor()) * 100) + "% 下层");
+        params.put("wearCoefficient", sim.getWearCoefficient());
+        params.put("tensionRange", "[" + sim.getTensionMin() + ", " + sim.getTensionMax() + "]");
         return params;
     }
 
@@ -288,7 +272,8 @@ public class WeavingSimulatorService {
     private int[][] expandMatrix(int[][] original) {
         int warpCount = original.length;
         int oldWeftCount = original[0].length;
-        int newWeftCount = Math.min(oldWeftCount * 2, MAX_WEFT_ROWS);
+        int maxRows = weavingProperties.getSimulation().getMaxWeftRows();
+        int newWeftCount = Math.min(oldWeftCount * 2, maxRows);
 
         if (newWeftCount <= oldWeftCount) {
             return original;
